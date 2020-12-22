@@ -61,6 +61,7 @@ def dataset_from_tfrecords(tfrecords_pattern, include_outputs=False):
         return inputs
 
     dataset = tf.data.Dataset.list_files(tfrecords_pattern).interleave(
-        lambda filename: tf.data.TFRecordDataset(filename).map(parse_func)
+        lambda filename: tf.data.TFRecordDataset(filename).map(parse_func),
+        num_parallel_calls=tf.data.AUTOTUNE,
     )
     return dataset

@@ -10,10 +10,14 @@ LIB_JVM=/usr/local/jdk/jre/lib/amd64/server/
 # --archives hdfs:///Python.zip#Python：从hdfs集群下载/Python.zip到executor工作目录，并解压到Python目录
 # --py-files ./src.zip：项目python源代码，会解压到executor的某目录下并令PYTHONPATH指向该目录
 # --conf spark.pyspark.python=./Python/bin/python3：指定使用自行上传的Python
+#  --conf spark.executorEnv.LD_LIBRARY_PATH=${LIB_JVM}：依赖libjvm.so
+#  --conf spark.dynamicAllocation.enabled=false  禁止spark自动扩容executor数量
+#  --conf spark.yarn.maxAppAttempts=1 失败重试1次
 spark-submit \
   --master yarn \
   --deploy-mode client \
   --num-executors 5 \
+  --executor-cores 2 \
   --executor-memory 8G \
   --archives hdfs:///tf2-onspark/Python.zip#Python \
   --py-files ./src.zip \

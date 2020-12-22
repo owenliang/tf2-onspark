@@ -1,7 +1,7 @@
 import argparse
 from pyspark.context import SparkContext
 from pyspark.conf import SparkConf
-from tensorflowonspark import TFCluster, compat
+from tensorflowonspark import TFCluster
 import tensorflow as tf
 from model import build_model
 from dataset import dataset_from_tfrecords
