@@ -19,11 +19,13 @@ spark-submit \
   --py-files ./src.zip \
   --conf spark.pyspark.python=./Python/bin/python3 \
   --conf spark.executorEnv.LD_LIBRARY_PATH=${LIB_JVM} \
+  --conf spark.dynamicAllocation.enabled=false \
+  --conf spark.yarn.maxAppAttempts=1 \
   src/train.py \
   --batch_size 32 \
-  --shuffle_size 100 \
+  --shuffle_size 32 \
   --worker_size 5 \
-  --epochs 10000 \
+  --epochs 1000 \
   --train_dir hdfs:///tf2-onspark/train \
   --model_dir hdfs:///tf2-onspark/model \
   --tensorboard_dir hdfs:///tf2-onspark/tensorboard
