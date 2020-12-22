@@ -1,26 +1,47 @@
 import argparse
 from pyspark.context import SparkContext
 from pyspark.conf import SparkConf
-from tensorflowonspark import TFCluster
+from tensorflowonspark import TFCluster, compat
+import tensorflow as tf
+from model import build_model
+from dataset import dataset_from_tfrecords
+import time
+
+MODEL_VERSION = 0
 
 def main_fun(args, ctx):
-    pass
+    strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
 
-conf = SparkConf().setAppName("tf2-onspark-training")
-sc = SparkContext(conf=conf)
+    with strategy.scope():
+        wide_deep_model = build_model()
+
+    dataset = dataset_from_tfrecords(args.train_dir + '/part*', include_outputs=True)
+    dataset = dataset.batch(args.batch_size * args.worker_size).shuffle(args.shuffle_size)
+
+    tensorboard_dir = args.tensorboard_dir if ctx.job_name == 'chief' else './tensorboard'
+    tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir='{}/{}'.format(tensorboard_dir, MODEL_VERSION), histogram_freq=1)
+    wide_deep_model.fit(dataset, epochs=args.epochs, callbacks=[tensorboard_callback])
+
+    model_dir = args.model_dir if ctx.job_name == 'chief' else './model'
+    wide_deep_model.save('{}/{}'.format(model_dir, MODEL_VERSION), save_format='tf', include_optimizer=False)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--batch_size", help="number of records per batch", type=int, default=64)
-parser.add_argument("--buffer_size", help="size of shuffle buffer", type=int, default=10000)
-parser.add_argument("--cluster_size", help="number of nodes in the cluster", type=int)
-parser.add_argument("--epochs", help="number of epochs", type=int, default=3)
-parser.add_argument("--images_labels", help="HDFS path to MNIST image_label files in parallelized format")
-parser.add_argument("--model_dir", help="path to save model/checkpoint", default="mnist_model")
-parser.add_argument("--export_dir", help="path to export saved_model", default="mnist_export")
-parser.add_argument("--tensorboard", help="launch tensorboard process", action="store_true")
+parser.add_argument("--batch_size", help="number of records per batch", type=int)
+parser.add_argument("--shuffle_size", help="size of shuffle buffer", type=int)
+parser.add_argument("--worker_size", help="number of nodes in the cluster", type=int)
+parser.add_argument("--epochs", help="number of epochs", type=int)
+parser.add_argument("--train_dir", help="HDFS path to training tfrecords files in parallelized format")
+parser.add_argument("--model_dir", help="hdfs path to save model")
+parser.add_argument("--tensorboard_dir", help="hdfs path to tensorboard logs")
 
 args = parser.parse_args()
 print("args:", args)
 
-cluster = TFCluster.run(sc, main_fun, args, args.cluster_size, num_ps=0, tensorboard=args.tensorboard, input_mode=TFCluster.InputMode.TENSORFLOW, master_node='chief')
+MODEL_VERSION = int(time.time())
+
+conf = SparkConf().setAppName("tf2-onspark-training")
+sc = SparkContext(conf=conf)
+cluster = TFCluster.run(sc, main_fun, args, args.worker_size, num_ps=0, tensorboard=False, input_mode=TFCluster.InputMode.TENSORFLOW, master_node='chief')
 cluster.shutdown()
+
+print('model version={}'.format(MODEL_VERSION))
